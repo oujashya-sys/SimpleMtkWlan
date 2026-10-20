@@ -1,0 +1,55 @@
+name: Build experimental RZ616 kext
+
+on:
+  push:
+    branches:
+      - rz616-0616-experimental
+    paths:
+      - "SimpleMtkWlan/**"
+      - "SimpleMtkWlan.xcodeproj/**"
+      - ".github/workflows/build-rz616-experimental.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build SimpleMtkWlan (experimental)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Fetch MacKernelSDK
+        run: git clone --depth 1 https://github.com/acidanthera/MacKernelSDK.git MacKernelSDK
+
+      - name: Build Debug kext
+        run: |
+          xcodebuild \
+            -project SimpleMtkWlan.xcodeproj \
+            -scheme SimpleMtkWlan \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package build artifact
+        run: |
+          KEXT_PATH="$RUNNER_TEMP/DerivedData/Build/Products/Debug/SimpleMtkWlan.kext"
+          test -d "$KEXT_PATH"
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent "$KEXT_PATH" "artifacts/SimpleMtkWlan-RZ616-experimental.zip"
+          shasum -a 256 "artifacts/SimpleMtkWlan-RZ616-experimental.zip"
+
+      - name: Upload experimental kext
+        uses: actions/upload-artifact@v4
+        with:
+          name: SimpleMtkWlan-RZ616-experimental
+          path: artifacts/SimpleMtkWlan-RZ616-experimental.zip
+          if-no-files-found: error
+          retention-days: 7
